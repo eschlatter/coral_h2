@@ -24,7 +24,7 @@ load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/fluor.RData')
 ### Red
 
 #### red~animal+sire+dam+rep
-animal mixes ok-ish, dam and sire not good
+
 ```{r,eval=FALSE}
 nu = 0.001
 p_var = var(fluor$red_rel,na.rm=TRUE) #total phenotypic variance in relative green fluor
@@ -48,6 +48,8 @@ save(red_fluor_1,prior1_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/
 load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_1.RData')
 
 summary(red_fluor_1)
+plot(red_fluor_1)
+
 traces <- red_fluor_1$VCV
 herit <- traces[,1]/rowSums(traces)
 plot(herit)
@@ -62,7 +64,7 @@ HPDinterval(Herit)
 ```
 
 #### red~sire+dam+sire:dam
-dam, sire, and dam:sire don't mix well
+
 ```{r,eval=FALSE}
 # priors aren't specified, but this is the default
 nu = 0.0001
@@ -86,6 +88,8 @@ save(red_fluor_2,prior2_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/
 load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_2.RData')
 
 summary(red_fluor_2)
+plot(red_fluor_2)
+
 traces <- red_fluor_2$VCV
 herit <- 2*traces[,2]/rowSums(traces)
 plot(herit)
@@ -100,7 +104,7 @@ HPDinterval(Herit)
 
 
 #### red~sire+dam+sire:dam, with priors centered on fraction of total VP
-sire and dam:sire terms do a little better, but dam is still not good
+
 ```{r,eval=FALSE}
 nu = 0.001
 p_var = var(fluor$red_rel,na.rm=TRUE) #total phenotypic variance in relative green fluor
@@ -122,6 +126,8 @@ save(red_fluor_3,prior3_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/
 load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_3.RData')
 
 summary(red_fluor_3)
+plot(red_fluor_3)
+
 traces <- red_fluor_3$VCV
 herit <- 2*traces[,2]/rowSums(traces)
 plot(herit)
@@ -135,7 +141,7 @@ HPDinterval(Herit)
 ```
 
 #### red~sire+dam+sire:dam, parameter-expanded
-dam and sire are not good
+
 ```{r,eval=FALSE}
 prior4_red = list(R=list(V=1,nu=0.002),
                          G=list(G1=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1),
@@ -154,6 +160,8 @@ save(red_fluor_4,prior4_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/
 load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_4.RData')
 
 summary(red_fluor_4)
+plot(red_fluor_4)
+
 traces <- red_fluor_4$VCV
 herit <- 2*traces[,2]/rowSums(traces)
 plot(herit)
@@ -166,4 +174,47 @@ effectiveSize(Herit)
 HPDinterval(Herit)
 ```
 
+#### red~animal+dam+rep
+This might make more sense than trying to estimate sire separately from animal, because there's not much replication within sires.
+```{r,eval=FALSE}
+nu = 0.001
+p_var = var(fluor$red_rel,na.rm=TRUE) #total phenotypic variance in relative green fluor
+prior_mode = p_var/4 #prior mode (4 variance components)
+V = ((nu+2)/nu)*prior_mode #prior parameter V (inverse Wishart) for additive genetic effect
 
+prior5_red = list(R=list(V=V,nu=nu),
+                    G=list(G1=list(V=V,nu=nu),G2=list(V=V,nu=nu),
+                           G3=list(V=V,nu=nu)))
+
+red_fluor_5 <- MCMCglmm(red_rel~1,
+                   random=~animal+dam+rep,
+                   prior=prior5_red,
+                   ginverse=list(animal=Ainv),
+                   data=fluor,nitt=100000,burnin=1000,thin=10,verbose=FALSE)
+
+save(red_fluor_5,prior5_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_5.RData')
+```
+
+```{r}
+load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_5.RData')
+
+summary(red_fluor_5)
+plot(red_fluor_5)
+
+traces <- red_fluor_5$VCV
+dam_trace <- data.frame(time=1:9900,dam=as.data.frame(traces[,2]))
+plot(dam_trace,type='l',ylim=c(0,5))
+x <- dist(dam_trace$var1)
+
+
+herit <- traces[,1]/rowSums(traces)
+plot(herit)
+effectiveSize(herit)
+HPDinterval(herit)
+
+
+Herit <- (traces[,1]+traces[,2])/rowSums(traces)
+plot(Herit)
+effectiveSize(Herit)
+HPDinterval(Herit)
+```

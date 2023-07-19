@@ -1,0 +1,110 @@
+---
+title: "Process trait data"
+author: "E Schlatter"
+date: "10/13/2022"
+output: html_document
+---
+
+```{r message=FALSE, warning=FALSE}
+setwd("/Users/eschlatter/Dropbox/coral_h2")
+library(tidyverse)
+library(MasterBayes) #for pedigree functions
+library(MCMCglmm) #for running the model
+library(MCMCpack) #for inverse wishart distributions
+library(bayesplot) #mcmc_areas plot function
+library(gridExtra) #multiple plots per figure
+source('analysis/functions.R')
+```
+
+
+## Fluorescence
+```{r}
+load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/fluor.RData')
+
+fluor_summ <- count(fluor,sire,dam,rep) %>%
+  mutate(rep=str_sub(rep,-1))  %>%
+  pivot_wider(names_from=rep,values_from=n,values_fn=list) %>%
+  rename(n_rep1 = '1', n_rep2 = '2') %>%
+  filter(!is.na(sire)) %>%
+  dplyr::select(!'NA')
+#for each pair of parents, (usually) two replicates. A few have only one replicate: CP, AQY, and CZ
+#within each replicate, some number (from 3 to 24) of full-sibs. Sometimes two sets of full-sibs because of clones.
+
+#do the replicates represent similarity across parents? (i.e., should there be any similarity among two unrelated larvae that are both from rep 1?) I think not, right? (That's why the rep column in the original dataset includes parental IDs.)
+
+```
+
+
+```{r}
+hist(fluor$red_rel)
+ggplot(fluor, aes(x=sire,y=red_rel,color=dam))+
+  stat_boxplot()
+red_aov=aov(red_rel~sire, data=fluor)
+summary(red_aov)
+#TukeyHSD(red_aov)
+
+cols <- c("sire","dam","rep")
+fluor %>% 
+   group_by(across(all_of(cols))) %>% 
+   summarize(x=count(red_rel))
+
+hist(fluor$blue_rel)
+ggplot(fluor, aes(x=sire,y=blue_rel,color=dam))+
+  stat_boxplot()
+blue_aov=aov(blue_rel~sire, data=fluor)
+summary(blue_aov)
+
+
+hist(fluor$green_rel)
+ggplot(fluor, aes(x=sire,y=green_rel,color=dam))+
+  stat_boxplot()
+green_aov=aov(green_rel~sire, data=fluor)
+summary(green_aov)
+```
+
+## Settlement
+
+```{r}
+load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/settlement.RData')
+
+settlement_summ <- count(settlement,dam,sire,rep,timepoint) %>%
+  pivot_wider(names_from=timepoint,values_from=n) %>%
+  rename(n_time24 = '24', n_time48 = '48')
+#at each time (24 and 48), six samples per pair of parents
+#where a sample is a bunch of larvae, some of whom have settled
+#three samples from each rep
+```
+
+## Lipids
+
+```{r}
+load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/lipids.RData')
+
+lipid_summ <- lipids %>%
+  mutate(sample=str_sub(sample,-1))  %>%
+  rename(rep=sample) %>%
+  dplyr::select(-timepoint,-egg,-lipid) %>%
+  pivot_wider(names_from=rep,values_from=loss,values_fn = list) %>%
+  rename(loss_rep1 = '1', loss_rep2 = '2')
+
+#two samples per pair of parents (4 for the clones)
+#each sample has a lipids value and an egg value; we can calculate loss as (lipid-egg)/egg
+#that's probably not enough replication for the animal model to make any sense out of it.
+```
+
+## Protein
+
+```{r}
+load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/protein.RData')
+
+protein_summ <- protein %>%
+  dplyr::select(-culture,-egg,-day5) %>%
+  pivot_wider(names_from=rep,values_from=loss,values_fn = list) %>%
+  rename(loss_rep1 = '1', loss_rep2 = '2')
+
+#4 samples per pair of parents (8 for the clones)
+#each sample has a lipids value and an egg value; we can calculate loss as (lipid-egg)/egg
+#for a given set of parents, are samples within a rep expected to be more similar than samples across reps? Probably. If so, we should include both rep and a within-rep identifier as predictor variables. Call the within-rep identifier "id", and add it now.
+
+protein <- mutate(protein,id=as.character(1:nrow(protein)))
+```

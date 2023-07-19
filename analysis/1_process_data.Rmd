@@ -61,27 +61,39 @@ fluor <- fluor %>%
 #save(fluor,Ainv,list=c('fluor','Ainv'),file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/fluor.RData')
 ```
 
-### EDA
+
+
+
+## Settlement
+
 ```{r}
-hist(fluor$red_rel)
-ggplot(fluor, aes(x=sire,y=red_rel,color=dam))+
-  stat_boxplot()
-red_aov=aov(red_rel~sire, data=fluor)
-summary(red_aov)
-#TukeyHSD(red_aov)
+settlement <- as.data.frame(read.csv('C:/Users/eschlatter/Dropbox/coral_h2/traits/A.millepora_Settlement_2011.csv',header=TRUE)) %>%
+  mutate(prop = rec/(rec+lar)) %>%
+  rename(dam=mom,sire=dad,timepoint=time)
 
-
-hist(fluor$blue_rel)
-ggplot(fluor, aes(x=sire,y=blue_rel,color=dam))+
-  stat_boxplot()
-blue_aov=aov(blue_rel~sire, data=fluor)
-summary(blue_aov)
-
-
-hist(fluor$green_rel)
-ggplot(fluor, aes(x=sire,y=green_rel,color=dam))+
-  stat_boxplot()
-green_aov=aov(green_rel~sire, data=fluor)
-summary(green_aov)
+save(settlement,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/settlement.RData')
 ```
 
+
+## Lipids
+
+```{r}
+
+lipids <- as.data.frame(read.csv('C:/Users/eschlatter/Dropbox/coral_h2/traits/Lipid_2011_AC.csv',header=TRUE)) %>%
+  rename(dam=mom,sire=dad,timepoint=time) %>%
+  mutate(loss=(lipid-egg)/egg)
+
+save(lipids,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/lipids.RData')
+```
+
+## Protein
+
+```{r}
+
+protein <- as.data.frame(read.csv('C:/Users/eschlatter/Dropbox/coral_h2/traits/Protein_Orpheus.csv',header=TRUE)) %>%
+  rename(dam=mom,sire=dad,egg=wgg,day5=day3) %>% #sarah said day 3 should be day 5
+  mutate(loss=(day5-egg)/egg) %>%
+  dplyr::select(-day3av)
+
+save(protein,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/protein.RData')
+```
