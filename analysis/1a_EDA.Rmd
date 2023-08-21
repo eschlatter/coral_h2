@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r message=FALSE, warning=FALSE}
-setwd("/Users/eschlatter/Dropbox/coral_h2")
+setwd("C:/Users/eschlatter/Dropbox/coral_h2")
 library(tidyverse)
 library(MasterBayes) #for pedigree functions
 library(MCMCglmm) #for running the model
@@ -43,17 +43,11 @@ red_aov=aov(red_rel~sire, data=fluor)
 summary(red_aov)
 #TukeyHSD(red_aov)
 
-cols <- c("sire","dam","rep")
-fluor %>% 
-   group_by(across(all_of(cols))) %>% 
-   summarize(x=count(red_rel))
-
 hist(fluor$blue_rel)
 ggplot(fluor, aes(x=sire,y=blue_rel,color=dam))+
   stat_boxplot()
 blue_aov=aov(blue_rel~sire, data=fluor)
 summary(blue_aov)
-
 
 hist(fluor$green_rel)
 ggplot(fluor, aes(x=sire,y=green_rel,color=dam))+
@@ -61,6 +55,25 @@ ggplot(fluor, aes(x=sire,y=green_rel,color=dam))+
 green_aov=aov(green_rel~sire, data=fluor)
 summary(green_aov)
 ```
+Data transformation?
+```{r}
+qqnorm(fluor$red_rel,main='red_relative')
+#qqline(fluor$red_rel)
+qqnorm(fluor$blue_rel, main='blue_relative')
+qqnorm(fluor$green_rel,main='green_relative')
+
+fluor_transform <- fluor %>%
+  mutate(red_rel_trans = asin(sqrt(red_rel))) %>%
+  mutate(blue_rel_trans = asin(sqrt(blue_rel))) %>%
+  mutate(green_rel_trans = asin(sqrt(green_rel)))
+
+qqnorm(fluor_transform$red_rel_trans,main='red_transform')
+qqnorm(fluor_transform$blue_rel_trans,main='blue_transform')
+qqnorm(fluor_transform$green_rel_trans,main='green_transform')
+
+#Transforming the data doesn't seem to make a big difference in normality...can we do without it?
+```
+
 
 ## Settlement
 
@@ -73,6 +86,18 @@ settlement_summ <- count(settlement,dam,sire,rep,timepoint) %>%
 #at each time (24 and 48), six samples per pair of parents
 #where a sample is a bunch of larvae, some of whom have settled
 #three samples from each rep
+
+settlement <- settlement %>%
+  mutate(parents = paste(dam,sire,sep=''),id=paste(dam,sire,'.',rep,pl,sep=''),n=rec+lar)
+
+settlement_24 <- subset(settlement,timepoint=='24')
+settlement_48 <- subset(settlement,timepoint=='48')
+
+hist(settlement_24$prop)
+hist(settlement_48$prop)
+
+ggplot(settlement,aes(x=timepoint,y=prop,group=id))+
+  geom_line(aes(color = parents))
 ```
 
 ## Lipids

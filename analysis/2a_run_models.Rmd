@@ -1,0 +1,198 @@
+---
+title: "Run heritability analyses"
+author: "E Schlatter"
+date: "8/21/2023"
+output: html_document
+---
+
+```{r message=FALSE, warning=FALSE}
+setwd("C:/Users/eschlatter/Dropbox/coral_h2")
+library(tidyverse)
+library(MasterBayes) #for pedigree functions
+library(MCMCglmm) #for running the model
+library(MCMCpack) #for inverse wishart distributions
+library(bayesplot) #mcmc_areas plot function
+library(gridExtra) #multiple plots per figure
+source('analysis/functions.R')
+```
+
+
+## Fluorescence
+```{r}
+load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/fluor.RData')
+```
+The model we'll use is **color ~ dam + rep + breeding value + residual.**
+
+We'll model each color separately, for now.
+
+I'm using the relative fluorescence of each color -- e.g., red / (red+blue+green).
+
+I haven't transformed the data in any way. In Sarah's dissertation, she used arcsin(square root(relative fluorescence)).
+
+**Animal Model**
+
+This is an animal model: the "breeding value" term is essentially the contribution of additive genetic effect. (Breeding value is modeled as a normally-distributed random variable, with covariances among individuals according to their relatedness. The coefficient of this random variable is VA.) I've stuck to the animal model for now, since it sounds like that's what we'll use for gene expression.
+
+**Sire effect not estimated separately from VA**
+
+Sire isn't included as a predictor variable here. I think it makes sense not to try to estimate sire separately from breeding value, since there's not much replication within sires. [That is: for each individual, we're already getting an estimate of the contribution of additive genetic effect to their phenotype. Trying to estimate the contribution of sires on top of that -- i.e., how much sharing a father contributes to the similarity between two larvae, over and above the effect from the 1/4 additional relatedness -- is a lot to ask, given the number of offspring per sire.]
+
+**Dam as a fixed effect**
+
+I've modeled dam as a fixed effect. The only difference between a fixed and a random effect in a Bayesian model is that, for a random effect, you estimate the variance (among levels). For a fixed effect, the variance is set (usually to something large). With only two levels for dam, we don't have enough data to estimate the variance among dams in a meaningful way. So we should treat it as a fixed effect.
+
+This introduces a problem when estimating heritability. By including dam as a fixed effect, we artificially inflate the estimate of heritability as it's usually calculated (VA divided by the sum of estimates of all variance components). Since there's no variance component representing the -- substantial! -- variation due to dam, the denominator is artificially small, and h2 is artificially large. [see: Wilson 2008, Journal of Evolutionary Biology: Why h^2 does not always equal VA/VP]
+
+One way to address this is to divide instead not by the sum of all variance component estimates, but instead by the observed phenotypic variance of the data. That's what I've done here. (We should also check that adding dam as a fixed effect this way doesn't change the estimate of VA too much.)
+
+The alternative would be to include dam as a random effect, so that its associated variance is included in the denominator when estimating heritability. But, although the model *will* give us an answer when we ask it to estimate the variance attributed to dam, it's 1. not well-behaved (some iterations of the MCMC algorithm give preposterously high values, like 1000), and 2. isn't really meaningful, because it's estimated from only two data points (dam A and dam C).
+
+### Red
+
+```{r,eval=FALSE}
+#The default fixed effect prior has a zero mean vector and a diagonal variance matrix with large variances (1e+10). We'll leave that alone, and specify the random and residual effect priors as follows:
+prior_red = list(R=list(V=1,nu=0.002),
+                         G=list(G1=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1),
+                                G2=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1)))
+
+#If we treat dam as fixed, then MCMCglmm needs a dam assigned to each individual in the dataset, even the parents. We'll add dummy variables in for them. This is ok, since the parents' rows don't get used anyway (they don't have phenotype data).
+fluor$dam <- as.character(fluor$dam)
+fluor$dam[1:10] <- c('AA','BB','CC','DD','EE','FF','GG','HH','II','JJ')
+fluor$dam <- as.factor(fluor$dam)
+
+#fixed effects written as dam-1 means we don't specify a global intercept; each level of dam (A and C) has its own. 
+red_fluor <- MCMCglmm(red_rel~dam-1,
+                   random=~animal+rep,
+                   prior=prior_red,
+                   ginverse=list(animal=Ainv),
+                   data=fluor,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
+
+save(red_fluor,prior_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor.RData')
+```
+
+```{r}
+load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor.RData')
+model <- red_fluor
+
+summary(model)
+plot(model)
+
+vp_observed <- var(fluor$red_rel,na.rm=TRUE)
+herit_obs <- model$VCV[,1]/vp_observed
+summary(herit_obs)
+plot(herit_obs)
+```
+We can look at how much of the observed phenotypic variance is captured by our variance components (rep, animal, and residual). Whatever isn't captured there must be accounted for in the fixed effect (dam). So I think this gives an idea of how much that is.
+```{r}
+plot(rowSums(model$VCV)/vp_observed,type='l')
+hist(rowSums(model$VCV)/vp_observed)
+
+#look at variance within dams -- much greater for dam A than dam C
+fluor_A <- subset(fluor,dam=='A')
+var_A = var(fluor_A$red_rel,na.rm=TRUE)
+var_A/vp_observed
+
+fluor_C <- subset(fluor,dam=='C')
+var_C = var(fluor_C$red_rel,na.rm=TRUE)
+var_C/vp_observed
+```
+
+### Blue
+
+```{r,eval=FALSE}
+#The default fixed effect prior has a zero mean vector and a diagonal variance matrix with large variances (1e+10). We'll leave that alone, and specify the random and residual effect priors as follows:
+prior_blue = list(R=list(V=1,nu=0.002),
+                         G=list(G1=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1),
+                                G2=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1)))
+
+#If we treat dam as fixed, then MCMCglmm needs a dam assigned to each individual in the dataset, even the parents. We'll add dummy variables in for them. This is ok, since the parents' rows don't get used anyway (they don't have phenotype data).
+fluor$dam <- as.character(fluor$dam)
+fluor$dam[1:10] <- c('AA','BB','CC','DD','EE','FF','GG','HH','II','JJ')
+fluor$dam <- as.factor(fluor$dam)
+
+#fixed effects written as dam-1 means we don't specify a global intercept; each level of dam (A and C) has its own. 
+blue_fluor <- MCMCglmm(blue_rel~dam-1,
+                   random=~animal+rep,
+                   prior=prior_red,
+                   ginverse=list(animal=Ainv),
+                   data=fluor,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
+
+save(blue_fluor,prior_blue,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/blue_fluor.RData')
+```
+
+```{r}
+load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/blue_fluor.RData')
+model <- blue_fluor
+
+summary(model)
+plot(model)
+
+vp_observed <- var(fluor$blue_rel,na.rm=TRUE)
+herit_obs <- model$VCV[,1]/vp_observed
+summary(herit_obs)
+plot(herit_obs)
+```
+
+We can look at how much of the observed phenotypic variance is captured by our variance components (rep, animal, and residual). Whatever isn't captured there must be accounted for in the fixed effect (dam). So I think this gives an idea of how much that is.
+```{r}
+plot(rowSums(model$VCV)/vp_observed,type='l')
+hist(rowSums(model$VCV)/vp_observed)
+
+#look at variance within dams -- much greater for dam A than dam C
+fluor_A <- subset(fluor,dam=='A')
+var_A = var(fluor_A$blue_rel,na.rm=TRUE)
+var_A/vp_observed
+
+fluor_C <- subset(fluor,dam=='C')
+var_C = var(fluor_C$blue_rel,na.rm=TRUE)
+var_C/vp_observed
+```
+### Green
+
+```{r,eval=FALSE}
+#The default fixed effect prior has a zero mean vector and a diagonal variance matrix with large variances (1e+10). We'll leave that alone, and specify the random and residual effect priors as follows:
+prior_green = list(R=list(V=1,nu=0.002),
+                         G=list(G1=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1),
+                                G2=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1)))
+
+#If we treat dam as fixed, then MCMCglmm needs a dam assigned to each individual in the dataset, even the parents. We'll add dummy variables in for them. This is ok, since the parents' rows don't get used anyway (they don't have phenotype data).
+fluor$dam <- as.character(fluor$dam)
+fluor$dam[1:10] <- c('AA','BB','CC','DD','EE','FF','GG','HH','II','JJ')
+fluor$dam <- as.factor(fluor$dam)
+
+#fixed effects written as dam-1 means we don't specify a global intercept; each level of dam (A and C) has its own. 
+green_fluor <- MCMCglmm(green_rel~dam-1,
+                   random=~animal+rep,
+                   prior=prior_green,
+                   ginverse=list(animal=Ainv),
+                   data=fluor,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
+
+save(green_fluor,prior_green,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/green_fluor.RData')
+```
+
+```{r}
+load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/green_fluor.RData')
+model <- green_fluor
+
+summary(model)
+plot(model)
+
+vp_observed <- var(fluor$green_rel,na.rm=TRUE)
+herit_obs <- model$VCV[,1]/vp_observed
+summary(herit_obs)
+plot(herit_obs)
+```
+We can look at how much of the observed phenotypic variance is captured by our variance components (rep, animal, and residual). Whatever isn't captured there must be accounted for in the fixed effect (dam). So I think this gives an idea of how much that is.
+```{r}
+plot(rowSums(model$VCV)/vp_observed,type='l')
+hist(rowSums(model$VCV)/vp_observed)
+
+#look at variance within dams -- much greater for dam A than dam C
+fluor_A <- subset(fluor,dam=='A')
+var_A = var(fluor_A$green_rel,na.rm=TRUE)
+var_A/vp_observed
+
+fluor_C <- subset(fluor,dam=='C')
+var_C = var(fluor_C$green_rel,na.rm=TRUE)
+var_C/vp_observed
+```
