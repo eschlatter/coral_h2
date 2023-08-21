@@ -21,8 +21,8 @@ fn_plot_one_priorandpost <- function(prior_params,post_samples,name='variance co
   
   #grab posterior samples and convert to density
   prior_density_noinf <- prior_density[prior_density!=Inf]
-  n_samps = 100*max((max(max(post_samples,na.rm=TRUE),max(prior_density_noinf,na.rm=TRUE)))/xlim,1)
-  post_density = density(post_samples,n=n_samps) #make sure the density samples enough to match prior
+#  n_samps = 100*max((max(max(post_samples,na.rm=TRUE),max(prior_density_noinf,na.rm=TRUE)))/xlim,1)
+  post_density = density(post_samples,n=250) #make sure the density samples enough to match prior
   post_mode = post_density$x[which.max(post_density$y)]
   
   #do some scaling if necessary
@@ -116,3 +116,23 @@ fn_herit_plot <- function(model,modeltype){
   
   return(g)
 } #fn_herit_plot
+
+###########################################################
+fn_get_estimates <- function(model,herit){
+###########################################################
+  #store estimates (mean, median, upper+lower95) for each variable (original and scaled)
+  estimates=data.frame()
+  #original variables
+  for(i in 1:ncol(model$VCV)){
+    v_name <- colnames(model$VCV)[i]
+    v_mcmc <- model$VCV[,i]
+    v_estimates <- data.frame(variable=v_name,
+                              mean=mean(v_mcmc),median=median(v_mcmc),lower95=HPDinterval(v_mcmc)[,1],upper95=HPDinterval(v_mcmc)[,2])
+    estimates=rbind(estimates,v_estimates)
+  }
+  v_estimates <- data.frame(variable='heritability',
+                            mean=mean(herit),median=median(herit),lower95=HPDinterval(herit)[,1],upper95=HPDinterval(herit)[,2])
+  estimates <- rbind(estimates,v_estimates)
+  rownames(estimates)=estimates$variable
+  return(dplyr::select(estimates,-variable))
+  }

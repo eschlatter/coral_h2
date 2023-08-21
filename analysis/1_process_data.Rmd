@@ -6,14 +6,13 @@ output: html_document
 ---
 
 ```{r message=FALSE, warning=FALSE}
-setwd("/Users/eschlatter/Dropbox/coral_h2")
 library(tidyverse)
 library(MasterBayes) #for pedigree functions
 library(MCMCglmm) #for running the model
 library(MCMCpack) #for inverse wishart distributions
 library(bayesplot) #mcmc_areas plot function
 library(gridExtra) #multiple plots per figure
-source('analysis/functions.R')
+source('functions.R')
 ```
 
 
@@ -29,7 +28,7 @@ $\textbf{Ainv}$: the inverse of the relatedness matrix, A. In A, $A_{ij}=$probab
 
 ```{r data cleanup}
 #fluorescence
-fluor <- as.data.frame(read.csv('C:/Users/eschlatter/Dropbox/coral_h2/traits/fluor_Final_nosize.csv',header=TRUE)) %>%
+fluor <- as.data.frame(read.csv('../traits/fluor_Final_nosize.csv',header=TRUE)) %>%
   rename(green=geren)
 fluor <- mutate(fluor,id=as.character(1:nrow(fluor)))
 
@@ -58,7 +57,7 @@ fluor <- fluor %>%
   mutate(green_rel = green/(red+blue+green)) %>%
   mutate(blue_rel = blue/(red+blue+green))
 
-#save(fluor,Ainv,list=c('fluor','Ainv'),file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/fluor.RData')
+#save(fluor,Ainv,list=c('fluor','Ainv'),file='data/fluor.RData')
 ```
 
 
@@ -67,11 +66,13 @@ fluor <- fluor %>%
 ## Settlement
 
 ```{r}
-settlement <- as.data.frame(read.csv('C:/Users/eschlatter/Dropbox/coral_h2/traits/A.millepora_Settlement_2011.csv',header=TRUE)) %>%
-  mutate(prop = rec/(rec+lar)) %>%
+settlement <- as.data.frame(read.csv('../traits/A.millepora_Settlement_2011.csv',header=TRUE)) %>%
+  mutate(prop = rec/(rec+lar), id = paste(mom,dad,'.',rep,pl,sep='')) %>%
   rename(dam=mom,sire=dad,timepoint=time)
+settlement_24 <- subset(settlement, timepoint=='24')
+settlement_48 <- subset(settlement, timepoint=='48')
 
-save(settlement,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/settlement.RData')
+save(settlement,settlement_24,settlement_48,file='data/settlement.RData')
 ```
 
 
@@ -79,21 +80,21 @@ save(settlement,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/settlem
 
 ```{r}
 
-lipids <- as.data.frame(read.csv('C:/Users/eschlatter/Dropbox/coral_h2/traits/Lipid_2011_AC.csv',header=TRUE)) %>%
+lipids <- as.data.frame(read.csv('../traits/Lipid_2011_AC.csv',header=TRUE)) %>%
   rename(dam=mom,sire=dad,timepoint=time) %>%
   mutate(loss=(lipid-egg)/egg)
 
-save(lipids,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/lipids.RData')
+save(lipids,file='data/lipids.RData')
 ```
 
 ## Protein
 
 ```{r}
 
-protein <- as.data.frame(read.csv('C:/Users/eschlatter/Dropbox/coral_h2/traits/Protein_Orpheus.csv',header=TRUE)) %>%
+protein <- as.data.frame(read.csv('../traits/Protein_Orpheus.csv',header=TRUE)) %>%
   rename(dam=mom,sire=dad,egg=wgg,day5=day3) %>% #sarah said day 3 should be day 5
   mutate(loss=(day5-egg)/egg) %>%
   dplyr::select(-day3av)
 
-save(protein,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/protein.RData')
+save(protein,file='data/protein.RData')
 ```

@@ -1,29 +1,30 @@
 ---
-title: "Run heritability analyses"
+title: "Coral larval trait heritability"
 author: "E Schlatter"
 date: "8/21/2023"
 output: html_document
 ---
 
-```{r message=FALSE, warning=FALSE}
-setwd("C:/Users/eschlatter/Dropbox/coral_h2")
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+#setwd("C:/Users/eschlatter/Dropbox/coral_h2")
 library(tidyverse)
 library(MasterBayes) #for pedigree functions
 library(MCMCglmm) #for running the model
 library(MCMCpack) #for inverse wishart distributions
 library(bayesplot) #mcmc_areas plot function
 library(gridExtra) #multiple plots per figure
-source('analysis/functions.R')
+library(knitr)
+source('functions.R')
 ```
 
 
 ## Fluorescence
-```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/fluor.RData')
+```{r, echo=FALSE}
+load('data/fluor.RData')
 ```
-The model we'll use is **color ~ dam + rep + breeding value + residual.**
+The model I've used is **color ~ dam + rep + breeding value + residual.**
 
-We'll model each color separately, for now.
+Each color is treated separately, for now.
 
 I'm using the relative fluorescence of each color -- e.g., red / (red+blue+green).
 
@@ -35,7 +36,7 @@ This is an animal model: the "breeding value" term is essentially the contributi
 
 **Sire effect not estimated separately from VA**
 
-Sire isn't included as a predictor variable here. I think it makes sense not to try to estimate sire separately from breeding value, since there's not much replication within sires. [That is: for each individual, we're already getting an estimate of the contribution of additive genetic effect to their phenotype. Trying to estimate the contribution of sires on top of that -- i.e., how much sharing a father contributes to the similarity between two larvae, over and above the effect from the 1/4 additional relatedness -- is a lot to ask, given the number of offspring per sire.]
+Sire isn't included as a predictor variable here. I think it makes sense not to try to estimate a sire effect separately from breeding value, since there's not much replication within sires. (That is: for each larva, we're already getting an estimate of the contribution of additive genetic effect to their phenotype. Trying to estimate the contribution of paternal ID on top of that -- i.e., how much sharing a father contributes to the similarity between two larvae, over and above the effect from the 1/4 additional relatedness -- is a lot to ask, given the number of offspring per sire.)
 
 **Dam as a fixed effect**
 
@@ -43,13 +44,54 @@ I've modeled dam as a fixed effect. The only difference between a fixed and a ra
 
 This introduces a problem when estimating heritability. By including dam as a fixed effect, we artificially inflate the estimate of heritability as it's usually calculated (VA divided by the sum of estimates of all variance components). Since there's no variance component representing the -- substantial! -- variation due to dam, the denominator is artificially small, and h2 is artificially large. [see: Wilson 2008, Journal of Evolutionary Biology: Why h^2 does not always equal VA/VP]
 
-One way to address this is to divide instead not by the sum of all variance component estimates, but instead by the observed phenotypic variance of the data. That's what I've done here. (We should also check that adding dam as a fixed effect this way doesn't change the estimate of VA too much.)
+One way to address this is to divide not by the sum of all variance component estimates, but instead by the observed phenotypic variance of the data. That's what I've done here. (To be thorough, we should also note that adding dam as a fixed effect this way doesn't change the estimate of VA too much.)
 
-The alternative would be to include dam as a random effect, so that its associated variance is included in the denominator when estimating heritability. But, although the model *will* give us an answer when we ask it to estimate the variance attributed to dam, it's 1. not well-behaved (some iterations of the MCMC algorithm give preposterously high values, like 1000), and 2. isn't really meaningful, because it's estimated from only two data points (dam A and dam C).
+Another possibility is to estimate the variance due to the fixed effect, and include that in the denominator. There are some methods for doing this (de Villemereuil et al 2018); I'm looking into them.
+
+Alternatively, we could include dam as a random effect, so that its associated variance is included in the denominator when estimating heritability. But, although the model *will* give us an answer when we ask it to estimate the variance attributed to dam, it's 1) not well-behaved (some iterations of the MCMC algorithm give preposterously high values, like 1000), and 2) isn't really meaningful, because it's estimated from only two data points (dam A and dam C).
+
+**Influence of priors**
+
+The prior I'm using in the results shown here is parameter expanded for the non-residual components (rep and animal); default inverse Wishart for residual (MCMCglmm can't do parameter expansion for the residual).
+
+It's not shown here, but I've run these models with several different priors. They all have good mixing properties, and the estimates are essentially the same. I take that to mean there's enough signal in the data to overcome the influence of whatever (reasonable) prior we give it -- a good sign!
+
+### Results
+
+**Red fluorescence**
+
+```{r echo=FALSE, message=FALSE}
+load('models/red_fluor.RData')
+vp_red <- var(fluor$red_rel,na.rm=TRUE)
+herit_red <- red_fluor$VCV[,1]/vp_red
+red_est <- fn_get_estimates(red_fluor,herit_red)
+kable(red_est)
+```
+
+**Blue fluorescence**
+
+```{r echo=FALSE, message=FALSE}
+load('models/blue_fluor.RData')
+vp_blue <- var(fluor$blue_rel,na.rm=TRUE)
+herit_blue <- blue_fluor$VCV[,1]/vp_blue
+blue_est <- fn_get_estimates(blue_fluor,herit_blue)
+kable(blue_est)
+```
+
+**Green fluorescence**
+
+```{r echo=FALSE, message=FALSE}
+load('models/green_fluor.RData')
+vp_green <- var(fluor$green_rel,na.rm=TRUE)
+herit_green <- green_fluor$VCV[,1]/vp_green
+green_est <- fn_get_estimates(green_fluor,herit_green)
+kable(green_est)
+```
+
+Detailed output of each of the three models below.
 
 ### Red
-
-```{r,eval=FALSE}
+```{r,eval=FALSE, echo=FALSE}
 #The default fixed effect prior has a zero mean vector and a diagonal variance matrix with large variances (1e+10). We'll leave that alone, and specify the random and residual effect priors as follows:
 prior_red = list(R=list(V=1,nu=0.002),
                          G=list(G1=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1),
@@ -70,27 +112,34 @@ red_fluor <- MCMCglmm(red_rel~dam-1,
 save(red_fluor,prior_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor.RData')
 ```
 
-```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor.RData')
+**MCMCglmm output:**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+load('models/red_fluor.RData')
 model <- red_fluor
 
 summary(model)
 plot(model)
+```
 
+**Priors and posteriors:**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+fn_plot_all_priorandpost(model,prior_red,xlim=0.005)
+```
+
+**Heritability:**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 vp_observed <- var(fluor$red_rel,na.rm=TRUE)
 herit_obs <- model$VCV[,1]/vp_observed
 summary(herit_obs)
 plot(herit_obs)
 ```
 
-Priors and posteriors:
-```{r}
-fn_plot_all_priorandpost(model,prior_red,xlim=0.005)
-```
-
 ### Blue
 
-```{r,eval=FALSE}
+```{r,eval=FALSE, echo=FALSE}
 #The default fixed effect prior has a zero mean vector and a diagonal variance matrix with large variances (1e+10). We'll leave that alone, and specify the random and residual effect priors as follows:
 prior_blue = list(R=list(V=1,nu=0.002),
                          G=list(G1=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1),
@@ -111,27 +160,34 @@ blue_fluor <- MCMCglmm(blue_rel~dam-1,
 save(blue_fluor,prior_blue,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/blue_fluor.RData')
 ```
 
-```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/blue_fluor.RData')
+**MCMCglmm output:**
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+load('models/blue_fluor.RData')
 model <- blue_fluor
 
 summary(model)
 plot(model)
+```
 
+**Priors and posteriors:**
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+fn_plot_all_priorandpost(model,prior_blue,xlim=0.005)
+```
+
+**Heritability:**
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 vp_observed <- var(fluor$blue_rel,na.rm=TRUE)
 herit_obs <- model$VCV[,1]/vp_observed
 summary(herit_obs)
 plot(herit_obs)
 ```
 
-Priors and posteriors:
-```{r}
-fn_plot_all_priorandpost(model,prior_blue,xlim=0.005)
-```
-
 ### Green
 
-```{r,eval=FALSE}
+```{r,eval=FALSE, echo=FALSE}
 #The default fixed effect prior has a zero mean vector and a diagonal variance matrix with large variances (1e+10). We'll leave that alone, and specify the random and residual effect priors as follows:
 prior_green = list(R=list(V=1,nu=0.002),
                          G=list(G1=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1),
@@ -152,20 +208,61 @@ green_fluor <- MCMCglmm(green_rel~dam-1,
 save(green_fluor,prior_green,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/green_fluor.RData')
 ```
 
-```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/green_fluor.RData')
+**MCMCglmm output:**
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+load('models/green_fluor.RData')
 model <- green_fluor
 
 summary(model)
 plot(model)
+```
 
+**Priors and posteriors:**
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+fn_plot_all_priorandpost(model,prior_green,xlim=0.005)
+```
+
+**Heritability:**
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 vp_observed <- var(fluor$green_rel,na.rm=TRUE)
 herit_obs <- model$VCV[,1]/vp_observed
 summary(herit_obs)
 plot(herit_obs)
 ```
 
-Priors and posteriors:
-```{r}
-fn_plot_all_priorandpost(model,prior_green,xlim=0.005)
+## Settlement
+
+```{r,echo=FALSE}
+load('data/settlement.RData')
 ```
+
+So far, I'm treating the 24-hour and 48-hour timepoints separately.
+
+```{r, echo=FALSE, message=FALSE}
+hist(settlement_24$prop)
+hist(settlement_48$prop)
+
+hist(asin(sqrt(settlement_24$prop)))
+hist(asin(sqrt(settlement_48$prop)))
+```
+
+These aren't normally-distributed data. They're proportions that vary between 0 and 1. The arcsin(sqrt) transformation makes them look a little more normal. But I'm pretty sure the estimation of variance components on the nonlinearly-transformed data doesn't translate in a straightforward way back to the original (what de Villemereuil et al 2018 calls the latent scale to the data scale).
+
+I think the solution to this is a GLMM, where the response variable is modeled as a non-Gaussian distribution. I'm still working out how we implement this, with the fixed effect for dam, to get a heritability estimate on the scale of the original data.
+
+- My first idea is to look at it as a binary response variable. Currently, each row of our data is one trial, with # larvae and # settlers (a total of n individuals). We could turn that into n rows of data, one for each individual, where the phenotype is 1=settled, 0=hasn't settled.
+
+- As it's currently formatted, each data point comes from a binomial(n,p) distribution, but n varies among data points.
+
+## Lipids
+
+Two samples per pair of parents (4 for the clones). Each sample has a lipids value and an egg value; we can calculate loss as (lipid-egg)/egg.
+
+That's probably not enough replication for the animal model to make any sense out of it.
+
+## Protein
+
+Four samples per pair of parents (8 for the clones).

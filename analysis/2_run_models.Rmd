@@ -5,8 +5,9 @@ date: "10/13/2022"
 output: html_document
 ---
 
+This is a scratchpad of various trial-and-error models; for something more readable, see 2a_run_models.Rmd
+
 ```{r message=FALSE, warning=FALSE}
-setwd("C:/Users/eschlatter/Dropbox/coral_h2")
 library(tidyverse)
 library(MasterBayes) #for pedigree functions
 library(MCMCglmm) #for running the model
@@ -20,7 +21,7 @@ Let's stick to the animal model for now, since it sounds like that's what we'll 
 
 ## Fluorescence
 ```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/fluor.RData')
+load('data/fluor.RData')
 ```
 
 ### Red
@@ -46,11 +47,11 @@ red_fluor_5 <- MCMCglmm(red_rel~1,
                    ginverse=list(animal=Ainv),
                    data=fluor,nitt=100000,burnin=1000,thin=10,verbose=FALSE)
 
-save(red_fluor_5,prior5_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_5.RData')
+save(red_fluor_5,prior5_red,file='models/red_fluor_5.RData')
 ```
 
 ```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_5.RData')
+load('models/red_fluor_5.RData')
 
 summary(red_fluor_5)
 plot(red_fluor_5)
@@ -95,7 +96,7 @@ save(red_fluor_6,prior6_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/
 ```
 
 ```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_6.RData')
+load('models/red_fluor_6.RData')
 
 model <- red_fluor_6
 summary(model)
@@ -134,11 +135,11 @@ red_fluor_7 <- MCMCglmm(red_rel~1,
                    ginverse=list(animal=Ainv),
                    data=fluor,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
 
-save(red_fluor_7,prior7_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_7.RData')
+save(red_fluor_7,prior7_red,file='models/red_fluor_7.RData')
 ```
 
 ```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_7.RData')
+load('models/red_fluor_7.RData')
 
 model <- red_fluor_7
 summary(model)
@@ -184,7 +185,7 @@ red_fluor_8 <- MCMCglmm(red_rel~1+dam,
                    ginverse=list(animal=Ainv),
                    data=fluor,nitt=100000,burnin=1000,thin=10,verbose=TRUE)
 
-save(red_fluor_8,prior8_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_8.RData')
+save(red_fluor_8,prior8_red,file='models/red_fluor_8.RData')
 ```
 
 ```{r,eval=FALSE}
@@ -199,12 +200,12 @@ red_fluor_9 <- MCMCglmm(red_rel~dam-1,
                    ginverse=list(animal=Ainv),
                    data=fluor,nitt=100000,burnin=1000,thin=10,verbose=TRUE)
 
-save(red_fluor_9,prior9_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_9.RData')
+save(red_fluor_9,prior9_red,file='models/red_fluor_9.RData')
 
 ```
 
 ```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_9.RData')
+load('models/red_fluor_9.RData')
 
 #by including dam as a fixed effect, we artificially inflate the estimate of heritability if it's calculated in the traditional way (VA divided by the sum of estimates of all variance components). To get an estimate that means what we expect heritability to mean, we can instead divide by the observed phenotypic variance of the data.
 #[see: Wilson 2008, Journal of Evolutionary Biology: Why h^2 does not always equal VA/VP]
@@ -234,19 +235,83 @@ red_fluor_10 <- MCMCglmm(red_rel~dam-1,
                    ginverse=list(animal=Ainv),
                    data=fluor,nitt=100000,burnin=1000,thin=10,verbose=TRUE)
 
-save(red_fluor_10,prior10_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_10.RData')
+save(red_fluor_10,prior10_red,file='models/red_fluor_10.RData')
 
 ```
 
 
 Not much difference between the parameter-expanded priors and the ones centered on a fraction of the observed phenotypic variance. In this case, that value is probably too high, because the fixed effect (dam) is soaking up a lot of the variance. So, a priori, maybe better to use the parameter expansion.
 ```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_9.RData')
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor_10.RData')
+load('models/red_fluor_9.RData')
+load('models/red_fluor_10.RData')
 plot(red_fluor_9)
 plot(red_fluor_10)
 ```
+A couple more, to check the influence of priors. (Results are basically the same in all cases.)
 
+default inverse wishart for all components:
+```{r,eval=FALSE, echo=FALSE}
+#The default fixed effect prior has a zero mean vector and a diagonal variance matrix with large variances (1e+10). We'll leave that alone, and specify the random and residual effect priors as follows:
+prior_red1 = list(R=list(V=1,nu=0.002),
+                         G=list(G1=list(V=1,nu=0.002),
+                                G2=list(V=1,nu=0.002)))
+
+#If we treat dam as fixed, then MCMCglmm needs a dam assigned to each individual in the dataset, even the parents. We'll add dummy variables in for them. This is ok, since the parents' rows don't get used anyway (they don't have phenotype data).
+fluor$dam <- as.character(fluor$dam)
+fluor$dam[1:10] <- c('AA','BB','CC','DD','EE','FF','GG','HH','II','JJ')
+fluor$dam <- as.factor(fluor$dam)
+
+#fixed effects written as dam-1 means we don't specify a global intercept; each level of dam (A and C) has its own. 
+red_fluor1 <- MCMCglmm(red_rel~dam-1,
+                   random=~animal+rep,
+                   prior=prior_red1,
+                   ginverse=list(animal=Ainv),
+                   data=fluor,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
+
+save(red_fluor1,prior_red1,file='models/red_fluor1.RData')
+```
+
+inverse Wishart for all components, with mean based on observed phenotypic variance
+```{r,eval=FALSE, echo=FALSE}
+#The default fixed effect prior has a zero mean vector and a diagonal variance matrix with large variances (1e+10). We'll leave that alone, and specify the random and residual effect priors as follows:
+nu = 0.001
+p_var = var(fluor$red_rel,na.rm=TRUE) #total phenotypic variance in relative red fluor
+prior_mode = p_var/3 #prior mode (3 variance components)
+V = ((nu+2)/nu)*prior_mode #prior parameter V (inverse Wishart) for additive genetic effect
+
+prior_red2 = list(R=list(V=V,nu=nu),
+                    G=list(G1=list(V=V,nu=nu),G2=list(V=V,nu=nu)))
+
+#If we treat dam as fixed, then MCMCglmm needs a dam assigned to each individual in the dataset, even the parents. We'll add dummy variables in for them. This is ok, since the parents' rows don't get used anyway (they don't have phenotype data).
+fluor$dam <- as.character(fluor$dam)
+fluor$dam[1:10] <- c('AA','BB','CC','DD','EE','FF','GG','HH','II','JJ')
+fluor$dam <- as.factor(fluor$dam)
+
+#fixed effects written as dam-1 means we don't specify a global intercept; each level of dam (A and C) has its own. 
+red_fluor2 <- MCMCglmm(red_rel~dam-1,
+                   random=~animal+rep,
+                   prior=prior_red2,
+                   ginverse=list(animal=Ainv),
+                   data=fluor,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
+
+save(red_fluor2,prior_red2,file='models/red_fluor2.RData')
+```
+
+Different priors, same result:
+```{r, echo=FALSE}
+load('models/red_fluor.RData')
+model <- red_fluor
+summary(model)
+
+load('models/red_fluor1.RData')
+model <- red_fluor1
+summary(model)
+
+load('models/red_fluor2.RData')
+model <- red_fluor2
+summary(model)
+
+```
 
 ### Blue
 
@@ -266,11 +331,11 @@ blue_fluor_1 <- MCMCglmm(blue_rel~1,
                    ginverse=list(animal=Ainv),
                    data=fluor,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
 
-save(blue_fluor_1,prior1_blue,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/blue_fluor_1.RData')
+save(blue_fluor_1,prior1_blue,file='models/blue_fluor_1.RData')
 ```
 
 ```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/blue_fluor_1.RData')
+load('models/blue_fluor_1.RData')
 
 model <- blue_fluor_1
 summary(model)
@@ -308,11 +373,11 @@ green_fluor_1 <- MCMCglmm(green_rel~1,
                    ginverse=list(animal=Ainv),
                    data=fluor,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
 
-save(green_fluor_1,prior1_green,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/green_fluor_1.RData')
+save(green_fluor_1,prior1_green,file='models/green_fluor_1.RData')
 ```
 
 ```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/green_fluor_1.RData')
+load('models/green_fluor_1.RData')
 
 model <- green_fluor_1
 summary(model)

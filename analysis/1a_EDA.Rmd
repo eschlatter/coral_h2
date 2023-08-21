@@ -6,20 +6,19 @@ output: html_document
 ---
 
 ```{r message=FALSE, warning=FALSE}
-setwd("C:/Users/eschlatter/Dropbox/coral_h2")
 library(tidyverse)
 library(MasterBayes) #for pedigree functions
 library(MCMCglmm) #for running the model
 library(MCMCpack) #for inverse wishart distributions
 library(bayesplot) #mcmc_areas plot function
 library(gridExtra) #multiple plots per figure
-source('analysis/functions.R')
+source('functions.R')
 ```
 
 
 ## Fluorescence
 ```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/fluor.RData')
+load('data/fluor.RData')
 
 fluor_summ <- count(fluor,sire,dam,rep) %>%
   mutate(rep=str_sub(rep,-1))  %>%
@@ -78,7 +77,7 @@ qqnorm(fluor_transform$green_rel_trans,main='green_transform')
 ## Settlement
 
 ```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/settlement.RData')
+load('data/settlement.RData')
 
 settlement_summ <- count(settlement,dam,sire,rep,timepoint) %>%
   pivot_wider(names_from=timepoint,values_from=n) %>%
@@ -103,7 +102,7 @@ ggplot(settlement,aes(x=timepoint,y=prop,group=id))+
 ## Lipids
 
 ```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/lipids.RData')
+load('data/lipids.RData')
 
 lipid_summ <- lipids %>%
   mutate(sample=str_sub(sample,-1))  %>%
@@ -120,7 +119,7 @@ lipid_summ <- lipids %>%
 ## Protein
 
 ```{r}
-load('C:/Users/eschlatter/Dropbox/coral_h2/analysis/data/protein.RData')
+load('data/protein.RData')
 
 protein_summ <- protein %>%
   dplyr::select(-culture,-egg,-day5) %>%
