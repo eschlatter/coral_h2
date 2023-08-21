@@ -82,19 +82,10 @@ herit_obs <- model$VCV[,1]/vp_observed
 summary(herit_obs)
 plot(herit_obs)
 ```
-We can look at how much of the observed phenotypic variance is captured by our variance components (rep, animal, and residual). Whatever isn't captured there must be accounted for in the fixed effect (dam). So I think this gives an idea of how much that is.
+
+Priors and posteriors:
 ```{r}
-plot(rowSums(model$VCV)/vp_observed,type='l')
-hist(rowSums(model$VCV)/vp_observed)
-
-#look at variance within dams -- much greater for dam A than dam C
-fluor_A <- subset(fluor,dam=='A')
-var_A = var(fluor_A$red_rel,na.rm=TRUE)
-var_A/vp_observed
-
-fluor_C <- subset(fluor,dam=='C')
-var_C = var(fluor_C$red_rel,na.rm=TRUE)
-var_C/vp_observed
+fn_plot_all_priorandpost(model,prior_red,xlim=0.005)
 ```
 
 ### Blue
@@ -133,20 +124,11 @@ summary(herit_obs)
 plot(herit_obs)
 ```
 
-We can look at how much of the observed phenotypic variance is captured by our variance components (rep, animal, and residual). Whatever isn't captured there must be accounted for in the fixed effect (dam). So I think this gives an idea of how much that is.
+Priors and posteriors:
 ```{r}
-plot(rowSums(model$VCV)/vp_observed,type='l')
-hist(rowSums(model$VCV)/vp_observed)
-
-#look at variance within dams -- much greater for dam A than dam C
-fluor_A <- subset(fluor,dam=='A')
-var_A = var(fluor_A$blue_rel,na.rm=TRUE)
-var_A/vp_observed
-
-fluor_C <- subset(fluor,dam=='C')
-var_C = var(fluor_C$blue_rel,na.rm=TRUE)
-var_C/vp_observed
+fn_plot_all_priorandpost(model,prior_blue,xlim=0.005)
 ```
+
 ### Green
 
 ```{r,eval=FALSE}
@@ -182,17 +164,8 @@ herit_obs <- model$VCV[,1]/vp_observed
 summary(herit_obs)
 plot(herit_obs)
 ```
-We can look at how much of the observed phenotypic variance is captured by our variance components (rep, animal, and residual). Whatever isn't captured there must be accounted for in the fixed effect (dam). So I think this gives an idea of how much that is.
+
+Priors and posteriors:
 ```{r}
-plot(rowSums(model$VCV)/vp_observed,type='l')
-hist(rowSums(model$VCV)/vp_observed)
-
-#look at variance within dams -- much greater for dam A than dam C
-fluor_A <- subset(fluor,dam=='A')
-var_A = var(fluor_A$green_rel,na.rm=TRUE)
-var_A/vp_observed
-
-fluor_C <- subset(fluor,dam=='C')
-var_C = var(fluor_C$green_rel,na.rm=TRUE)
-var_C/vp_observed
+fn_plot_all_priorandpost(model,prior_green,xlim=0.005)
 ```

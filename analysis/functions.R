@@ -20,14 +20,15 @@ fn_plot_one_priorandpost <- function(prior_params,post_samples,name='variance co
   if(prior_mode==xvals[length(xvals)]) print('Warning: xlim is too small')
   
   #grab posterior samples and convert to density
-  n_samps = 100*max((max(max(post_samples,na.rm=TRUE),max(prior_density,na.rm=TRUE)))/xlim,1)
+  prior_density_noinf <- prior_density[prior_density!=Inf]
+  n_samps = 100*max((max(max(post_samples,na.rm=TRUE),max(prior_density_noinf,na.rm=TRUE)))/xlim,1)
   post_density = density(post_samples,n=n_samps) #make sure the density samples enough to match prior
   post_mode = post_density$x[which.max(post_density$y)]
   
   #do some scaling if necessary
   multfactor=1
-  if((max(post_density$y) > max(prior_density,na.rm=TRUE)*10)){ #if the posterior density is on a much larger scale than the prior
-    multfactor = 0.5*(max(post_density$y)/max(prior_density,na.rm=TRUE))
+  if((max(post_density$y) > max(prior_density_noinf,na.rm=TRUE)*10)){ #if the posterior density is on a much larger scale than the prior
+    multfactor = 0.5*(max(post_density$y)/max(prior_density_noinf,na.rm=TRUE))
   }
   
   #make a plot
