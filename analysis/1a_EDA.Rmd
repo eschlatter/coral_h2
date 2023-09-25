@@ -99,6 +99,19 @@ ggplot(settlement,aes(x=timepoint,y=prop,group=id))+
   geom_line(aes(color = parents))
 ```
 
+```{r}
+load('data/settlement_24.RData')
+
+ggplot(filter(settlement_24,!is.na(prop)), aes(x=sire,y=prop,color=dam))+
+  geom_point()
+```
+```{r}
+load('data/settlement_48.RData')
+
+ggplot(filter(settlement_48,!is.na(prop)), aes(x=sire,y=prop,color=dam))+
+  geom_point()
+```
+
 ## Lipids
 
 ```{r}

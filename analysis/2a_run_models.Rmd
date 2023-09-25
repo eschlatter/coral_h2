@@ -52,9 +52,9 @@ Alternatively, we could include dam as a random effect, so that its associated v
 
 **Influence of priors**
 
-The prior I'm using in the results shown here is parameter expanded for the non-residual components (rep and animal); default inverse Wishart for residual (MCMCglmm can't do parameter expansion for the residual).
+The prior I'm using in the results shown here is parameter expanded for the non-residual components (rep and animal), and uses the default inverse Wishart for residual (MCMCglmm can't do parameter expansion for the residual).
 
-It's not shown here, but I've run these models with several different priors. They all have good mixing properties, and the estimates are essentially the same. I take that to mean there's enough signal in the data to overcome the influence of whatever (reasonable) prior we give it -- a good sign!
+It's not shown here, but I've run these models with several different priors. They all have good mixing properties, and the estimates are essentially the same. I take that to mean there's enough signal in the data to overcome the influence of the prior we give it -- a good sign!
 
 ### Results
 
@@ -256,6 +256,53 @@ I think the solution to this is a GLMM, where the response variable is modeled a
 - My first idea is to look at it as a binary response variable. Currently, each row of our data is one trial, with # larvae and # settlers (a total of n individuals). We could turn that into n rows of data, one for each individual, where the phenotype is 1=settled, 0=hasn't settled.
 
 - As it's currently formatted, each data point comes from a binomial(n,p) distribution, but n varies among data points.
+
+
+For now, let's try the untransformed and the transformed data, and see if there's any difference.
+
+- **settlement proportion ~ dam + breeding value + residual**
+
+- Not including rep as a fixed effect. e.g., parents A and P have 6 datapoints at time 24: rep 1 plate A, rep 1 plate E, rep 1 plate F, rep 2 plate L, rep 2 plate O, rep 2 plate R. We're assuming that 2 plates from the same rep are no more likely to be similar than plates from opposite reps. Is this right? Otherwise we could include rep as a fixed effect w/2 levels (1 or 2).
+
+```{r}
+load('data/settlement_24.RData')
+
+#The default fixed effect prior has a zero mean vector and a diagonal variance matrix with large variances (1e+10). We'll leave that alone, and specify the random and residual effect priors as follows:
+prior_settle24 = list(R=list(V=1,nu=0.002), #R: residual effect
+                         G=list(G1=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1))) #G1: breeding value
+
+#fixed effects written as dam-1 means we don't specify a global intercept; each level of dam (A and C) has its own. 
+settle24 <- MCMCglmm(prop~dam-1,
+                   random=~animal,
+                   prior=prior_settle24,
+                   ginverse=list(animal=Ainv_24),
+                   data=settlement_24,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
+
+herit <- settle24$VCV[,1]/rowSums(settle24$VCV)
+
+#save(red_fluor,prior_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor.RData')
+```
+
+```{r}
+load('data/settlement_48.RData')
+
+#The default fixed effect prior has a zero mean vector and a diagonal variance matrix with large variances (1e+10). We'll leave that alone, and specify the random and residual effect priors as follows:
+prior_settle48 = list(R=list(V=1,nu=0.002), #R: residual effect
+                         G=list(G1=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1))) #G1: breeding value
+
+#fixed effects written as dam-1 means we don't specify a global intercept; each level of dam (A and C) has its own. 
+settle48 <- MCMCglmm(prop~dam-1,
+                   random=~animal,
+                   prior=prior_settle48,
+                   ginverse=list(animal=Ainv_48),
+                   data=settlement_48,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
+
+herit <- settle48$VCV[,1]/rowSums(settle48$VCV)
+herit_obs <- settle48$VCV[,1]/var(settlement_48$prop,na.rm=TRUE)
+
+#save(red_fluor,prior_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor.RData')
+```
+
 
 ## Lipids
 
