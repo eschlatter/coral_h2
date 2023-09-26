@@ -44,9 +44,7 @@ I've modeled dam as a fixed effect. The only difference between a fixed and a ra
 
 This introduces a problem when estimating heritability. By including dam as a fixed effect, we artificially inflate the estimate of heritability as it's usually calculated (VA divided by the sum of estimates of all variance components). Since there's no variance component representing the -- substantial! -- variation due to dam, the denominator is artificially small, and h2 is artificially large. [see: Wilson 2008, Journal of Evolutionary Biology: Why h^2 does not always equal VA/VP]
 
-One way to address this is to divide not by the sum of all variance component estimates, but instead by the observed phenotypic variance of the data. That's what I've done here. (To be thorough, we should also note that adding dam as a fixed effect this way doesn't change the estimate of VA too much.)
-
-Another possibility is to estimate the variance due to the fixed effect, and include that in the denominator. There are some methods for doing this (de Villemereuil et al 2018); I'm looking into them.
+We can address this by estimating the variance due to the fixed effect, and including that in the denominator. I've followed de Villemereuil et al 2018 (eqn 7), and used some code from de Villemereuil's MCMCglmm animal model tutorial (Version 2, 2023, p.26). [Note: this is an improvement over my first try, just using the phenotypic variance as the denominator of h2. It gives quantitatively different results -- h2 of red fluorescence, e.g., is about 0.15 instead of 0.42. But the credible intervals are tighter -- as expected, since, in any given run, if more of the variance is attributed to fixed effects, less is attributed to random effects.]
 
 Alternatively, we could include dam as a random effect, so that its associated variance is included in the denominator when estimating heritability. But, although the model *will* give us an answer when we ask it to estimate the variance attributed to dam, it's 1) not well-behaved (some iterations of the MCMC algorithm give preposterously high values, like 1000), and 2) isn't really meaningful, because it's estimated from only two data points (dam A and dam C).
 
@@ -62,9 +60,7 @@ It's not shown here, but I've run these models with several different priors. Th
 
 ```{r echo=FALSE, message=FALSE}
 load('models/red_fluor.RData')
-vp_red <- var(fluor$red_rel,na.rm=TRUE)
-herit_red <- red_fluor$VCV[,1]/vp_red
-red_est <- fn_get_estimates(red_fluor,herit_red)
+red_est <- fn_get_estimates(red_fluor,herit_red_fluor)
 kable(red_est)
 ```
 
@@ -72,9 +68,11 @@ kable(red_est)
 
 ```{r echo=FALSE, message=FALSE}
 load('models/blue_fluor.RData')
-vp_blue <- var(fluor$blue_rel,na.rm=TRUE)
-herit_blue <- blue_fluor$VCV[,1]/vp_blue
-blue_est <- fn_get_estimates(blue_fluor,herit_blue)
+# vp_blue <- var(fluor$blue_rel,na.rm=TRUE)
+# herit_blue <- blue_fluor$VCV[,1]/vp_blue
+# blue_est_old <- fn_get_estimates(blue_fluor,herit_blue)
+# kable(blue_est_old)
+blue_est <- fn_get_estimates(blue_fluor,herit_blue_fluor)
 kable(blue_est)
 ```
 
@@ -82,9 +80,11 @@ kable(blue_est)
 
 ```{r echo=FALSE, message=FALSE}
 load('models/green_fluor.RData')
-vp_green <- var(fluor$green_rel,na.rm=TRUE)
-herit_green <- green_fluor$VCV[,1]/vp_green
-green_est <- fn_get_estimates(green_fluor,herit_green)
+# vp_green <- var(fluor$green_rel,na.rm=TRUE)
+# herit_green <- green_fluor$VCV[,1]/vp_green
+# green_est_old <- fn_get_estimates(green_fluor,herit_green)
+# kable(green_est_old)
+green_est <- fn_get_estimates(green_fluor,herit_green_fluor)
 kable(green_est)
 ```
 
@@ -109,7 +109,15 @@ red_fluor <- MCMCglmm(red_rel~dam-1,
                    ginverse=list(animal=Ainv),
                    data=fluor,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
 
-save(red_fluor,prior_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor.RData')
+## this is the better way to calculate h2 with fixed effects.
+# Rather than just dividing by the observed phenotypic variance, use the variance of the predicted values from the fixed effects as VF, and let VP = VF+VA+VE be the denominator.
+# (See de Villemereuil 2023)
+model <- red_fluor
+X <- model[['X']] #design matrix relating observations (larvae) to fixed effects (dams)
+VF <- apply(model[['Sol']],1,fn_compute_varpred,design_matrix=X) #multiply to get predicted phenotype, just based on dam, and take the variance of that over all larvae (once for each MCMC iteration)
+herit_red_fluor <- model$VCV[,1]/(rowSums(model$VCV)+VF)
+
+save(red_fluor,prior_red,herit_red_fluor,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor.RData')
 ```
 
 **MCMCglmm output:**
@@ -131,17 +139,8 @@ fn_plot_all_priorandpost(model,prior_red,xlim=0.005)
 **Heritability:**
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-vp_observed <- var(fluor$red_rel,na.rm=TRUE)
-herit_obs <- model$VCV[,1]/vp_observed
-summary(herit_obs)
-plot(herit_obs)
-
-## this is the better way to do it. Rather than just dividing by the observed phenotypic variance, use the variance of the predicted values from the fixed effects as VF, and let VP = VF+VA+VE be the denominator.
-X <- model[['X']] #design matrix relating observations (larvae) to fixed effects (dams)
-VF <- apply(model[['Sol']],1,compute_varpred,design_matrix=X) #multiply to get predicted phenotype, just based on dam, and take the variance of that over all larvae (once for each MCMC iteration)
-herit_withF <- model$VCV[,1]/(rowSums(model$VCV)+VF)
-summary(herit_withF)
-plot(herit_withF)
+summary(herit_red_fluor)
+plot(herit_red_fluor)
 ```
 
 ### Blue
@@ -160,11 +159,17 @@ fluor$dam <- as.factor(fluor$dam)
 #fixed effects written as dam-1 means we don't specify a global intercept; each level of dam (A and C) has its own. 
 blue_fluor <- MCMCglmm(blue_rel~dam-1,
                    random=~animal+rep,
-                   prior=prior_red,
+                   prior=prior_blue,
                    ginverse=list(animal=Ainv),
                    data=fluor,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
 
-save(blue_fluor,prior_blue,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/blue_fluor.RData')
+#calculate heritability
+model <- blue_fluor
+X <- model[['X']] #design matrix relating observations (larvae) to fixed effects (dams)
+VF <- apply(model[['Sol']],1,fn_compute_varpred,design_matrix=X)
+herit_blue_fluor <- model$VCV[,1]/(rowSums(model$VCV)+VF)
+
+save(blue_fluor,prior_blue,herit_blue_fluor,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/blue_fluor.RData')
 ```
 
 **MCMCglmm output:**
@@ -186,10 +191,8 @@ fn_plot_all_priorandpost(model,prior_blue,xlim=0.005)
 **Heritability:**
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
-vp_observed <- var(fluor$blue_rel,na.rm=TRUE)
-herit_obs <- model$VCV[,1]/vp_observed
-summary(herit_obs)
-plot(herit_obs)
+summary(herit_blue_fluor)
+plot(herit_blue_fluor)
 ```
 
 ### Green
@@ -212,7 +215,13 @@ green_fluor <- MCMCglmm(green_rel~dam-1,
                    ginverse=list(animal=Ainv),
                    data=fluor,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
 
-save(green_fluor,prior_green,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/green_fluor.RData')
+#calculate heritability
+model <- green_fluor
+X <- model[['X']] #design matrix relating observations (larvae) to fixed effects (dams)
+VF <- apply(model[['Sol']],1,fn_compute_varpred,design_matrix=X)
+herit_green_fluor <- model$VCV[,1]/(rowSums(model$VCV)+VF)
+
+save(green_fluor,prior_green,herit_green_fluor,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/green_fluor.RData')
 ```
 
 **MCMCglmm output:**
@@ -234,10 +243,8 @@ fn_plot_all_priorandpost(model,prior_green,xlim=0.005)
 **Heritability:**
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
-vp_observed <- var(fluor$green_rel,na.rm=TRUE)
-herit_obs <- model$VCV[,1]/vp_observed
-summary(herit_obs)
-plot(herit_obs)
+summary(herit_green_fluor)
+plot(herit_green_fluor)
 ```
 
 ## Settlement
