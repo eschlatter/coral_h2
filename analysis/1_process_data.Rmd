@@ -145,32 +145,55 @@ b_inds <- which(settlement_24$animal %in% c(145:156,193:204))
 settlement_24$clutch[a_inds] <- paste(settlement_24$clutch[a_inds],'a',sep='')
 settlement_24$clutch[b_inds] <- paste(settlement_24$clutch[b_inds],'b',sep='')
 
-settlement_24_binom = data.frame(dam = settlement_24$dam[1:10],sire = settlement_24$sire[1:10],
-                                 clutch = settlement_24$clutch[1:10], settled = NA)
+settlement_24_binom = data.frame(dam = settlement_24$dam[1:10],
+                                 sire = settlement_24$sire[1:10], clutch = settlement_24$clutch[1:10],
+                                 settled = NA)
                        
 for(cl in 11:nrow(settlement_24)){ #for each clutch
   if(settlement_24$lar[cl]!=0){
     for(larvs in 1:(settlement_24$lar[cl])){ #add as many rows as there are larvae in the clutch, with settled=0
-      new_row <- data.frame(dam = settlement_24$dam[cl], sire = settlement_24$sire[cl], 
-                            clutch = settlement_24$clutch[cl], settled = 0)
+      new_row <- data.frame(dam = settlement_24$dam[cl],
+                            sire = settlement_24$sire[cl], clutch = settlement_24$clutch[cl],
+                            settled = 0)
       settlement_24_binom <- rbind(settlement_24_binom,new_row)
       }
   }
   if(settlement_24$rec[cl]!=0){
-      for(recruits in 1:settlement_24$rec[cl]){ #add as many rows as there are recruits in the clutch, with settled=1
-    new_row <- data.frame(dam = settlement_24$dam[cl], sire = settlement_24$sire[cl], 
-                          clutch = settlement_24$clutch[cl], settled = 1)
+    for(recruits in 1:settlement_24$rec[cl]){ #add as many rows as there are recruits in the clutch, with settled=1
+      new_row <- data.frame(dam = settlement_24$dam[cl],
+                          sire = settlement_24$sire[cl], clutch = settlement_24$clutch[cl],
+                          settled = 1)
     settlement_24_binom <- rbind(settlement_24_binom,new_row)
     }
   }
 }
+#sum(settlement_24$lar,na.rm=TRUE)+sum(settlement_24$rec,na.rm=TRUE)+10
+#check that we did it right: this matches the number of rows in the new dataframe
 
-sum(settlement_24$lar,na.rm=TRUE)+sum(settlement_24$rec,na.rm=TRUE)+10
+settlement_24_binom <- filter(settlement_24_binom,!is.na(sire)) #get rid of parent rows
+settlement_24_binom$id <- as.factor(1:nrow(settlement_24_binom)) #add id column
 
-check <- summarise(group_by(settlement_24_binom,clutch),n())
-check2 <- settlement_24 %>% mutate(nn = rec+lar) %>% dplyr::select(clutch,nn)
+#pedigree and Ainv -- we'll need this later for heritability analysis
+pedigree <- dplyr::select(settlement_24_binom,id,dam,sire)
 
-checks <-  merge(check,check2,by='clutch') %>% mutate(dif = nn-`n()`)
+#pedigree utility functions (from MasterBayes) to insert parents and correctly order, and create Ainv
+full_pedig <- pedigree %>%
+  insertPed() %>%
+  orderPed()
+Ainv_24_binom <- MCMCglmm::inverseA(full_pedig)$Ainv
+
+#add empty rows to settlement_24 for parents
+parents_add = as.data.frame(matrix(nrow = 10, ncol = ncol(settlement_24_binom),
+                                   dimnames = list(NULL,colnames(settlement_24_binom))
+                                   ))
+parents_add$id <- subset(full_pedig,is.na(dam))$id
+parents_add$dam <- c('AA','BB','CC','DD','EE','FF','GG','HH','II','JJ') #If we treat dam as fixed, then MCMCglmm needs a dam assigned to each individual in the dataset, even the parents. We'll add dummy variables in for them. This is ok, since the parents' rows don't get used anyway (they don't have phenotype data).
+
+settlement_24_binom <- rbind(parents_add,settlement_24_binom) %>%
+  rename(animal=id)
+
+
+save(settlement_24_binom,Ainv_24_binom,file='data/settlement_24_binom.RData')
 ```
 
 
