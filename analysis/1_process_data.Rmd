@@ -129,6 +129,51 @@ save(settlement_48,Ainv_48,file='data/settlement_48.RData')
 ```
 
 
+```{r}
+# Process settlement data for use in a binomial model
+# one row per larva. New phenotype, settled, is 0 for larvae and 1 for recruits.
+load('data/settlement_24.RData')
+
+settlement_24 <- settlement_24 %>%
+  dplyr::select(animal,dam,sire,pl,rep,rec,lar) %>%
+  mutate(clutch = paste(dam,sire,pl,rep,sep='.'))
+settlement_24$clutch[1:10] <- NA
+
+#add a's and b's to distinguish clones' clutches from each other
+a_inds <- which(settlement_24$animal %in% c(25:36,97:108))
+b_inds <- which(settlement_24$animal %in% c(145:156,193:204))
+settlement_24$clutch[a_inds] <- paste(settlement_24$clutch[a_inds],'a',sep='')
+settlement_24$clutch[b_inds] <- paste(settlement_24$clutch[b_inds],'b',sep='')
+
+settlement_24_binom = data.frame(dam = settlement_24$dam[1:10],sire = settlement_24$sire[1:10],
+                                 clutch = settlement_24$clutch[1:10], settled = NA)
+                       
+for(cl in 11:nrow(settlement_24)){ #for each clutch
+  if(settlement_24$lar[cl]!=0){
+    for(larvs in 1:(settlement_24$lar[cl])){ #add as many rows as there are larvae in the clutch, with settled=0
+      new_row <- data.frame(dam = settlement_24$dam[cl], sire = settlement_24$sire[cl], 
+                            clutch = settlement_24$clutch[cl], settled = 0)
+      settlement_24_binom <- rbind(settlement_24_binom,new_row)
+      }
+  }
+  if(settlement_24$rec[cl]!=0){
+      for(recruits in 1:settlement_24$rec[cl]){ #add as many rows as there are recruits in the clutch, with settled=1
+    new_row <- data.frame(dam = settlement_24$dam[cl], sire = settlement_24$sire[cl], 
+                          clutch = settlement_24$clutch[cl], settled = 1)
+    settlement_24_binom <- rbind(settlement_24_binom,new_row)
+    }
+  }
+}
+
+sum(settlement_24$lar,na.rm=TRUE)+sum(settlement_24$rec,na.rm=TRUE)+10
+
+check <- summarise(group_by(settlement_24_binom,clutch),n())
+check2 <- settlement_24 %>% mutate(nn = rec+lar) %>% dplyr::select(clutch,nn)
+
+checks <-  merge(check,check2,by='clutch') %>% mutate(dif = nn-`n()`)
+```
+
+
 ## Lipids
 
 ```{r}
