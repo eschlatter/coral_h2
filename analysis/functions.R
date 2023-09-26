@@ -135,4 +135,12 @@ fn_get_estimates <- function(model,herit){
   estimates <- rbind(estimates,v_estimates)
   rownames(estimates)=estimates$variable
   return(dplyr::select(estimates,-variable))
-  }
+}
+
+###########################################################
+fn_compute_varpred <- function(beta,design_matrix){
+###########################################################
+  # from MCMCglmm heritability tutorial by Pierre de Villemereuil (Version 2, June 26, 2023)
+  # use to compute variance due to fixed effects for use in estimating heritability
+  var(as.vector(design_matrix %*% beta))
+}

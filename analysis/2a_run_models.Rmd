@@ -135,6 +135,13 @@ vp_observed <- var(fluor$red_rel,na.rm=TRUE)
 herit_obs <- model$VCV[,1]/vp_observed
 summary(herit_obs)
 plot(herit_obs)
+
+## this is the better way to do it. Rather than just dividing by the observed phenotypic variance, use the variance of the predicted values from the fixed effects as VF, and let VP = VF+VA+VE be the denominator.
+X <- model[['X']] #design matrix relating observations (larvae) to fixed effects (dams)
+VF <- apply(model[['Sol']],1,compute_varpred,design_matrix=X) #multiply to get predicted phenotype, just based on dam, and take the variance of that over all larvae (once for each MCMC iteration)
+herit_withF <- model$VCV[,1]/(rowSums(model$VCV)+VF)
+summary(herit_withF)
+plot(herit_withF)
 ```
 
 ### Blue
@@ -278,7 +285,17 @@ settle24 <- MCMCglmm(prop~dam-1,
                    ginverse=list(animal=Ainv_24),
                    data=settlement_24,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
 
-herit <- settle24$VCV[,1]/rowSums(settle24$VCV)
+#compute estimated variance from fixed effect (VF) to add to denominator of h2
+#code from tuto_en_2023 (de Villemuile sp?)
+
+compute_varpred <- function(beta,design_matrix){
+  var(as.vector(design_matrix %*% beta))
+}
+X <- settle24[['X']]
+VF <- apply(settle24[['Sol']],1,compute_varpred,design_matrix=X)
+
+herit_nf <- settle24$VCV[,1]/rowSums(settle24$VCV)
+herit <- settle24$VCV[,1]/(rowSums(settle24$VCV)+VF)
 
 #save(red_fluor,prior_red,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/red_fluor.RData')
 ```
