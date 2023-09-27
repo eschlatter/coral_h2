@@ -397,3 +397,64 @@ plot(Herit)
 effectiveSize(Herit)
 HPDinterval(Herit)
 ```
+
+## Settlement
+- Try a couple different families. Both mix very badly, but give quite similar estimates.
+```{r,eval=FALSE, echo=FALSE}
+load('data/settlement_24_binom.RData')
+
+## threshold family
+prior_settle24_binom = list(R=list(V=1,fix=1), #R: residual effect. Fixed at 1 for a binomial model.
+                         G=list(G1=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1), #G1: breeding value
+                                G2=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1))) # G2: clutch
+
+settle24_binom <- MCMCglmm(settled~1,
+                   random=~animal+clutch,
+                   family = 'threshold',
+                   prior=prior_settle24_binom,
+                   ginverse=list(animal=Ainv_24_binom),
+                   data=settlement_24_binom,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
+
+summary(settle24_binom)
+plot(settle24_binom)
+
+#calculate heritability
+model <- settle24_binom
+herit_settle24_binom <- model$VCV[,1]/rowSums(model$VCV)
+plot(herit_settle24_binom)
+summary(herit_settle24_binom)
+
+
+## try ordinal family. Better mixing?
+settle24_ord <- MCMCglmm(settled~1,
+                   random=~animal+clutch,
+                   family = 'ordinal',
+                   prior=prior_settle24_binom,
+                   ginverse=list(animal=Ainv_24_binom),
+                   data=settlement_24_binom,nitt=50000,burnin=1000,thin=10,verbose=TRUE)
+
+summary(settle24_ord)
+plot(settle24_ord)
+
+#calculate heritability
+model <- settle24_ord
+herit_settle24_ord <- model$VCV[,1]/(rowSums(model$VCV)+1)
+
+
+## how about categorical?
+settle24_cat <- MCMCglmm(settled~1,
+                   random=~animal+clutch,
+                   family = 'categorical',
+                   prior=prior_settle24_binom,
+                   ginverse=list(animal=Ainv_24_binom),
+                   data=settlement_24_binom,nitt=50000,burnin=1000,thin=10,verbose=TRUE)
+
+summary(settle24_cat)
+plot(settle24_cat)
+
+#calculate heritability
+model <- settle24_cat
+herit_settle24_cat <- model$VCV[,1]/(rowSums(model$VCV)+(pi^2)/3)
+
+save(settle24_binom,prior_settle24_binom,herit_settle24_binom,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/settle24_binom.RData')
+```

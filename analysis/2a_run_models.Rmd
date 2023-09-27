@@ -1,9 +1,9 @@
 ---
 title: "A. millepora larval trait heritability"
 author: "E Schlatter"
-date: "8/21/2023"
+date: "9/26/2023"
 output:
-  pdf_document:
+  html_document:
     toc: true
     toc_depth: 4
 
@@ -48,7 +48,7 @@ I've modeled dam as a fixed effect. The only difference between a fixed and a ra
 
 This introduces a problem when estimating heritability. By including dam as a fixed effect, we artificially inflate the estimate of heritability as it's usually calculated (VA divided by the sum of estimates of all variance components). Since there's no variance component representing the -- substantial! -- variation due to dam, the denominator is artificially small, and h2 is artificially large. [see: Wilson 2008, Journal of Evolutionary Biology: Why h^2 does not always equal VA/VP]
 
-We can address this by estimating the variance due to the fixed effect, and including that in the denominator. I've followed de Villemereuil et al 2018 (eqn 7), and used some code from de Villemereuil's MCMCglmm animal model tutorial (Version 2, 2023, p.26). [Note: this is an improvement over my first try, just using the phenotypic variance as the denominator of h2. It gives quantitatively different results -- h2 of red fluorescence, e.g., is about 0.15 instead of 0.42. But the credible intervals are tighter -- as expected, since, in any given run, if more of the variance is attributed to fixed effects, less is attributed to random effects.]
+We can address this by estimating the variance due to the fixed effect, and including that in the denominator. I've followed de Villemereuil et al 2018 (eqn 7), and used some code from de Villemereuil's MCMCglmm animal model tutorial (Version 2, 2023, p.26). [Note: this is an improvement over my first try, just using the phenotypic variance as the denominator of h2. It gives quantitatively different results -- h2 of red fluorescence, e.g., is about 0.15 instead of 0.42. But the credible intervals are tighter -- as expected, since, in any given MCMC iteration, if more of the variance is attributed to fixed effects, less is attributed to random effects.]
 
 Alternatively, we could include dam as a random effect, so that its associated variance is included in the denominator when estimating heritability. But, although the model *will* give us an answer when we ask it to estimate the variance attributed to dam, it's 1) not well-behaved (some iterations of the MCMC algorithm give preposterously high values, like 1000), and 2) isn't really meaningful, because it's estimated from only two data points (dam A and dam C).
 
@@ -58,7 +58,7 @@ The prior I'm using in the results shown here is parameter expanded for the non-
 
 It's not shown here, but I've run these models with several different priors. They all have good mixing properties, and the estimates are essentially the same. I take that to mean there's enough signal in the data to overcome the influence of the prior we give it -- a good sign!
 
-### Results
+### Summary
 
 **Red fluorescence**
 
@@ -267,22 +267,103 @@ hist(asin(sqrt(settlement_24$prop)))
 hist(asin(sqrt(settlement_48$prop)))
 ```
 
-These aren't normally-distributed data. They're proportions that vary between 0 and 1. The arcsin(sqrt) transformation makes them look a little more normal. But I'm pretty sure the estimation of variance components on the nonlinearly-transformed data doesn't translate in a straightforward way back to the original (what de Villemereuil et al 2018 calls the latent scale to the data scale).
+These aren't normally-distributed data. They're proportions that vary between 0 and 1. The arcsin(sqrt) transformation makes them look a little more normal. But the estimation of variance components on the nonlinearly-transformed data doesn't translate in a straightforward way back to the original (what de Villemereuil et al 2018 calls the latent scale to the data scale). I think the solution to this is a GLMM (see below).
 
-I think the solution to this is a GLMM, where the response variable is modeled as a non-Gaussian distribution. I'm still working out how we implement this, with the fixed effect for dam, to get a heritability estimate on the scale of the original data.
+But first, let's try estimating heritability from the untransformed and the transformed data, and see if there's any difference.
 
-- My first idea is to look at it as a binary response variable. Currently, each row of our data is one trial, with # larvae and # settlers (a total of n individuals). We could turn that into n rows of data, one for each individual, where the phenotype is 1=settled, 0=hasn't settled.
+- The model I'm using is **settlement proportion ~ dam + breeding value + residual**
 
-- As it's currently formatted, each data point comes from a binomial(n,p) distribution, but n varies among data points.
+- **??** I didn't include rep as a fixed effect. e.g., parents A and P have 6 datapoints at time 24: rep 1 plate A, rep 1 plate E, rep 1 plate F, rep 2 plate L, rep 2 plate O, rep 2 plate R. I'm assuming that 2 plates from the same rep are no more likely to be similar than plates from opposite reps. Is this right? Otherwise we could include rep as a fixed effect w/2 levels (1 or 2).
 
+### Summary
 
-For now, let's try the untransformed and the transformed data, and see if there's any difference.
+In this section are tables of variance component and heritability estimates, and traces and posterior plots of heritability. More details on each of the model outputs are in the sections that follow.
 
-- **settlement proportion ~ dam + breeding value + residual**
+#### Gaussian model: proportion of recruits
 
-- **??** Not including rep as a fixed effect. e.g., parents A and P have 6 datapoints at time 24: rep 1 plate A, rep 1 plate E, rep 1 plate F, rep 2 plate L, rep 2 plate O, rep 2 plate R. We're assuming that 2 plates from the same rep are no more likely to be similar than plates from opposite reps. Is this right? Otherwise we could include rep as a fixed effect w/2 levels (1 or 2).
+At 24 hours, the posterior credible interval for heritability is very wide. In both cases, the lower boundary of the 95% interval is close to zero. (Closer with the transformed data, which also has a slightly smaller median.) The distribution is sort of a plateau, rather than a nice unimodal shape. I take this to mean there's probably a weak signal, and we don't have enough data to resolve it fully.
 
+**Untransformed data -- 24 hours**
 
+```{r,echo=FALSE, message=FALSE,fig.dim=c(4.5,3)}
+load('models/settle24.RData')
+settle24_est <- fn_get_estimates(settle24,herit_settle24)
+kable(settle24_est)
+plot(herit_settle24)
+```
+
+**Transformed data -- 24 hours**
+
+```{r,echo=FALSE, message=FALSE,fig.dim=c(4.5,3)}
+load('models/settle24_transform.RData')
+settle24_transform_est <- fn_get_estimates(settle24_transform,herit_settle24_transform)
+kable(settle24_transform_est)
+plot(herit_settle24_transform)
+```
+
+At 48 hours, the posterior distributions for heritability are narrower, and definitely different from zero. (Again, the transformed data give slightly smaller estimates.)
+
+The data transformation doesn't make much of a difference in terms of results. Of the two options, I'd go with the untransformed data, because the interpretation is simpler: heritability of the proportion of offspring that recruit, vs heritability of the arcsin(sqrt()) of the proportion of offspring that recruit.
+
+Something that bothers me a little, though, is: whose trait is this? This analysis essentially treats each plate as an individual, and its trait is the proportion of recruits. Biologically speaking, that's not quite right. I'm not sure if it's a problem, but it makes me a little uncomfortable. So I think actually I'd advocate for a third option: a binomial model, described below, which has a simpler interpretation and avoids this problem.
+
+**Untransformed data -- 48 hours**
+
+```{r,echo=FALSE, message=FALSE,fig.dim=c(4.5,3)}
+load('models/settle48.RData')
+settle48_est <- fn_get_estimates(settle48,herit_settle48)
+kable(settle48_est)
+plot(herit_settle48)
+```
+
+**Transformed data -- 48 hours**
+
+```{r,echo=FALSE, message=FALSE,fig.dim=c(4.5,3)}
+load('models/settle48_transform.RData')
+settle48_transform_est <- fn_get_estimates(settle48_transform,herit_settle48_transform)
+kable(settle48_transform_est)
+plot(herit_settle48_transform)
+```
+
+#### Binomial model: recruitment-readiness
+
+In the original dataset, each row is one plate (at either 24 or 48 hours), where Sarah observed $n$ larvae and $m$ recruits. There are 6 plates for each pair of parents at each timepoint. For this analysis, I've reorganized the data so that, instead, each individual offspring (recruit or larva) is its own observation. So for each plate, there are $n+m$ rows in the reorganized dataset: around 3000 individuals at each of the 2 timepoints.
+
+The response variable here isn't the proportion of a plate that have recruited, it's a binary variable (called "settled") that applies to each individual offspring: 0 for larvae and 1 for recruits. We can use a binomial GLMM to look at its heritability.
+
+The GLMM assumes that the binary response variable ("settled") is a function of a latent trait that's normally distributed. In this context, that's saying that whether a larva has settled or not is determined by many genes of small effect. We can interpret this latent trait as meaning something like settlement-readiness. The GLMM assumes each individual has a value for this underlying trait, and there's a threshold: individuals with a value above the threshold are recruits, and those below are larvae.
+
+It's straightforward to calculate heritability in terms of the latent trait, and this is often what's done in the literature. In our case, I think it's a reasonable choice; it's a slight reframing of the question to ask about the heritability of settlement-readiness (at 24 or 48 hours) instead of the heritability of the proportion of offspring settled.
+
+I've included plate as a random effect, to control for the similarity in environment experienced by offspring in the same plate. (I called it `clutch`, because `plate` is already used in this dataset, and the same plate name appears for more than one set of parents.)
+
+I think including clutch means we can leave out dam as a fixed effect. Accounting for the variance among clutches includes the variance among dams. (Right?) I think this is good enough, since we don't specifically need to know the effect of the dams. And calculating heritability in a model with fixed effects is more complicated when it's a GLMM. So I've left it out for now.
+
+The model is **settled ~ breeding value + clutch + residual**.
+
+Qualitatively, the result is the same as for the proportion data: at 24 hours, the 95% posterior credible interval for heritability comes very close to zero (3e-4), while at 48 hours, it's quite distinct (0.12). But the estimates from the binomial model are quite a bit lower than from the (untransformed) proportion data: median of 0.17 vs 0.47 at 24 hours, and median of 0.37 vs 0.66 at 48 hours.
+
+[The residual variance is fixed at 1. That's because the nature of the binomial distribution means we can only estimate the relative sizes of the variance components. That's not a problem since, for heritability, relative magnitudes of variance components are all we care about anyway.]
+
+The GLMM doesn't mix very well yet. It's good enough that I'm pretty confident in the results, but I'd want it to be better for publication. I'm still looking into methods to improve it (trying different priors, etc).
+
+**Binomial model -- 24 hours**
+
+```{r,echo=FALSE, message=FALSE,fig.dim=c(4.5,3)}
+load('models/settle24_binom.RData')
+settle24_binom_est <- fn_get_estimates(settle24_binom,herit_settle24_binom)
+kable(settle24_binom_est)
+plot(herit_settle24_binom)
+```
+
+**Binomial model -- 48 hours**
+
+```{r,echo=FALSE, message=FALSE,fig.dim=c(4.5,3)}
+load('models/settle48_binom.RData')
+settle48_binom_est <- fn_get_estimates(settle48_binom,herit_settle48_binom)
+kable(settle48_binom_est)
+plot(herit_settle48_binom)
+```
 
 ### Untransformed data
 
@@ -312,20 +393,16 @@ save(settle24,prior_settle24,herit_settle24,file='C:/Users/eschlatter/Dropbox/co
 
 ```{r,echo=FALSE, message=FALSE}
 load('models/settle24.RData')
-settle24_est <- fn_get_estimates(settle24,herit_settle24)
-kable(settle24_est)
-```
-
-```{r,echo=FALSE, message=FALSE}
-load('models/settle24.RData')
 model <- settle24
+prior <- prior_settle24
+herit <- herit_settle24
+
 summary(model)
+summary(herit)
+effectiveSize(herit)
 plot(model)
-
-fn_plot_all_priorandpost(model,prior_settle24,xlim=0.1)
-
-summary(herit_settle24)
-plot(herit_settle24)
+fn_plot_all_priorandpost(model,prior,xlim=0.1)
+plot(herit)
 ```
 
 
@@ -355,20 +432,16 @@ save(settle48,prior_settle48,herit_settle48,file='C:/Users/eschlatter/Dropbox/co
 
 ```{r,echo=FALSE, message=FALSE}
 load('models/settle48.RData')
-settle48_est <- fn_get_estimates(settle48,herit_settle48)
-kable(settle48_est)
-```
-
-```{r,echo=FALSE, message=FALSE}
-load('models/settle48.RData')
 model <- settle48
+prior <- prior_settle48
+herit <- herit_settle48
+
 summary(model)
+summary(herit)
+effectiveSize(herit)
 plot(model)
-
-fn_plot_all_priorandpost(model,prior_settle48,xlim=0.1)
-
-summary(herit_settle48)
-plot(herit_settle48)
+fn_plot_all_priorandpost(model,prior,xlim=0.1)
+plot(herit)
 ```
 
 
@@ -401,20 +474,16 @@ save(settle24_transform,prior_settle24_transform,herit_settle24_transform,file='
 
 ```{r,echo=FALSE, message=FALSE}
 load('models/settle24_transform.RData')
-settle24_transform_est <- fn_get_estimates(settle24_transform,herit_settle24_transform)
-kable(settle24_transform_est)
-```
-
-```{r,echo=FALSE, message=FALSE}
-load('models/settle24_transform.RData')
 model <- settle24_transform
+prior <- prior_settle24_transform
+herit <- herit_settle24_transform
+
 summary(model)
+summary(herit)
+effectiveSize(herit)
 plot(model)
-
-fn_plot_all_priorandpost(model,prior_settle24_transform,xlim=0.1)
-
-summary(herit_settle24_transform)
-plot(herit_settle24_transform)
+fn_plot_all_priorandpost(model,prior,xlim=0.1)
+plot(herit)
 ```
 
 #### 48 hours
@@ -445,36 +514,24 @@ save(settle48_transform,prior_settle48_transform,herit_settle48_transform,file='
 
 ```{r,echo=FALSE, message=FALSE}
 load('models/settle48_transform.RData')
-settle48_transform_est <- fn_get_estimates(settle48_transform,herit_settle48_transform)
-kable(settle48_transform_est)
-```
-
-```{r,echo=FALSE, message=FALSE}
-load('models/settle48_transform.RData')
 model <- settle48_transform
+prior <- prior_settle48_transform
+herit <- herit_settle48_transform
+
 summary(model)
+summary(herit)
+effectiveSize(herit)
 plot(model)
-
-fn_plot_all_priorandpost(model,prior_settle48_transform,xlim=0.15)
-
-summary(herit_settle48_transform)
-plot(herit_settle48_transform)
+fn_plot_all_priorandpost(model,prior,xlim=0.15)
+plot(herit)
 ```
 
 ### Binomial model
 
 #### 24 hours
-
-- Now we're using a binary response variable (called "settled"): 0 for larvae and 1 for recruits.
-- The data has one row for each larva.
-- Should include clutch as a random effect.
-- Can we then leave out dam as a fixed effect? The variance due to dams is included in the clutch variance, so we've effectively controlled for dam statistically. (Right?) And this is good enough, since we don't specifically need to know the effect of dams. (Calculating h2 with fixed effects is more complicated in a GLMM. So I'm leaving it out for now.)
-- Try a couple different families. Both mix very badly, but give quite similar estimates.
-
 ```{r,eval=FALSE, echo=FALSE}
 load('data/settlement_24_binom.RData')
 
-## threshold family
 prior_settle24_binom = list(R=list(V=1,fix=1), #R: residual effect. Fixed at 1 for a binomial model.
                          G=list(G1=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1), #G1: breeding value
                                 G2=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1))) # G2: clutch
@@ -486,54 +543,68 @@ settle24_binom <- MCMCglmm(settled~1,
                    ginverse=list(animal=Ainv_24_binom),
                    data=settlement_24_binom,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
 
-summary(settle24_binom)
-plot(settle24_binom)
-
 #calculate heritability
 model <- settle24_binom
 herit_settle24_binom <- model$VCV[,1]/rowSums(model$VCV)
 
+save(settle24_binom,prior_settle24_binom,herit_settle24_binom,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/settle24_binom.RData')
+```
 
-## try ordinal family. Better mixing?
-settle24_ord <- MCMCglmm(settled~1,
+```{r,echo=FALSE, message=FALSE}
+load('models/settle24_binom.RData')
+model <- settle24_binom
+prior <- prior_settle24_binom
+herit <- herit_settle24_binom
+
+summary(model)
+summary(herit)
+effectiveSize(herit)
+plot(model)
+#fn_plot_all_priorandpost(model,prior,xlim=0.75)
+plot(herit)
+```
+
+#### 48 hours
+
+```{r,eval=FALSE, echo=FALSE}
+load('data/settlement_48_binom.RData')
+
+prior_settle48_binom = list(R=list(V=1,fix=1), #R: residual effect. Fixed at 1 for a binomial model.
+                         G=list(G1=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1), #G1: breeding value
+                                G2=list(V = 1,nu = 1000, alpha.mu=0, alpha.V=1))) # G2: clutch
+
+settle48_binom <- MCMCglmm(settled~1,
                    random=~animal+clutch,
-                   family = 'ordinal',
-                   prior=prior_settle24_binom,
-                   ginverse=list(animal=Ainv_24_binom),
-                   data=settlement_24_binom,nitt=50000,burnin=1000,thin=10,verbose=TRUE)
-
-summary(settle24_ord)
-plot(settle24_ord)
+                   family = 'threshold',
+                   prior=prior_settle48_binom,
+                   ginverse=list(animal=Ainv_48_binom),
+                   data=settlement_48_binom,nitt=1000000,burnin=10000,thin=100,verbose=TRUE)
 
 #calculate heritability
-model <- settle24_ord
-herit_settle24_ord <- model$VCV[,1]/(rowSums(model$VCV)+1)
+model <- settle48_binom
+herit_settle48_binom <- model$VCV[,1]/rowSums(model$VCV)
 
+save(settle48_binom,prior_settle48_binom,herit_settle48_binom,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/settle48_binom.RData')
+```
 
-## how about categorical?
-settle24_cat <- MCMCglmm(settled~1,
-                   random=~animal+clutch,
-                   family = 'categorical',
-                   prior=prior_settle24_binom,
-                   ginverse=list(animal=Ainv_24_binom),
-                   data=settlement_24_binom,nitt=50000,burnin=1000,thin=10,verbose=TRUE)
+```{r,echo=FALSE, message=FALSE}
+load('models/settle48_binom.RData')
+model <- settle48_binom
+prior <- prior_settle48_binom
+herit <- herit_settle48_binom
 
-summary(settle24_cat)
-plot(settle24_cat)
-
-#calculate heritability
-model <- settle24_cat
-herit_settle24_cat <- model$VCV[,1]/(rowSums(model$VCV)+(pi^2)/3)
-
-#save(settle24_transform,prior_settle24_transform,herit_settle24_transform,file='C:/Users/eschlatter/Dropbox/coral_h2/analysis/models/settle24_transform.RData')
+summary(model)
+summary(herit)
+effectiveSize(herit)
+plot(model)
+plot(herit)
+#fn_plot_all_priorandpost(model,prior,xlim=0.75)
 ```
 
 
 ## Lipids
 
 Two samples per pair of parents (4 for the clones). Each sample has a lipids value and an egg value; we can calculate loss as (lipid-egg)/egg.
-
-That's probably not enough replication for the animal model to make any sense out of it.
 
 ## Protein
 
